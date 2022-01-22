@@ -2,6 +2,7 @@ import shutil
 import tempfile
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.conf import settings
@@ -44,6 +45,14 @@ class PostPagesTests(TestCase):
         super().setUpClass()
         cls.user = User.objects.create_user(username=USERNAME)
         cls.another_user = User.objects.create_user(username=ANOTHER_USERMANE)
+        cls.authorized_client = Client()
+        cls.authorized_another_client = Client()
+        cls.authorized_client.force_login(cls.user)
+        cls.authorized_another_client.force_login(cls.another_user)
+        Follow.objects.create(
+            user=cls.user,
+            author=cls.another_user
+        )
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug=TEST_SLUG,
@@ -75,31 +84,34 @@ class PostPagesTests(TestCase):
         super().tearDownClass()
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
-    def setUp(self):
-        self.authorized_client = Client()
-        self.authorized_another_client = Client()
-        self.authorized_client.force_login(self.user)
-        self.authorized_another_client.force_login(self.another_user)
-
     def test_pages_show_correct_context(self):
         """
         Шаблоны index, group_list, profile
         сформированы с правильным контекстом.
         """
+        Follow.objects.create(
+            user=self.another_user,
+            author=self.user
+        )
         pages_reverse_name = [
             INDEX_URL,
             GROUP_LIST_URL,
             PROFILE_URL,
-            self.POST_DETAIL_URL
+            self.POST_DETAIL_URL,
+            FOLLOW_INDEX_URL
         ]
-        for reverse_name in pages_reverse_name:
-            with self.subTest(reverse_name=reverse_name):
-                response = self.authorized_client.get(reverse_name)
-                if reverse_name == self.POST_DETAIL_URL:
+        for url in pages_reverse_name:
+            with self.subTest(url=url):
+                if url == FOLLOW_INDEX_URL:
+                    response = self.authorized_another_client.get(url)
+                else:
+                    response = self.authorized_client.get(url)
+                if url == self.POST_DETAIL_URL:
                     post = response.context.get('post')
                 else:
-                    post = response.context['page_obj'][0]
-                    self.assertEqual(len(response.context['page_obj']), 1)
+                    posts = set(response.context['page_obj'])
+                    self.assertEqual(len(posts), 1)
+                    post = posts.pop()
                 self.assertEqual(post.author, self.post.author)
                 self.assertEqual(post.text, self.post.text)
                 self.assertEqual(post.group, self.post.group)
@@ -109,19 +121,31 @@ class PostPagesTests(TestCase):
     def test_no_post_on_page(self):
         """
         В выбранную группу не попадает пост,
-        относящийся к другой группе.
+        относящийся к другой группе,
+        На страницу подписок пользователя не попадает
+        пост автора, на которого пользователь не подписан.
         """
+        pages_reverse_name = [
+            NEW_GROUP_LIST_URL,
+            FOLLOW_INDEX_URL
+        ]
         self.assertNotIn(
             self.post,
-            self.authorized_client.get(
+            self.authorized_another_client.get(
                 NEW_GROUP_LIST_URL
             ).context['page_obj']
         )
+        for url in pages_reverse_name:
+            with self.subTest(url=url):
+                self.assertNotIn(
+                    self.post,
+                    self.authorized_client.get(url).context['page_obj']
+                )
 
     def test_author_on_sheet(self):
         """
-        Запись попала в профиль автора,
-        которым была создана
+        Имя авторизованного клиента совпадает
+        с именем профиля пользователя
         """
         self.assertEqual(
             self.user,
@@ -131,10 +155,7 @@ class PostPagesTests(TestCase):
         )
 
     def test_group_in_group_list(self):
-        """
-        Запись попала в группу,
-        для которой была создана
-        """
+        """Группа создалась с правильным содержанием полей"""
         group_items = self.authorized_client.get(
             GROUP_LIST_URL
         ).context['group']
@@ -144,74 +165,37 @@ class PostPagesTests(TestCase):
         self.assertEqual(self.group.description, group_items.description)
 
     def test_follow(self):
-        all_follows = set(Follow.objects.all())
         self.authorized_client.get(FOLLOW_URL)
-        follows = set(Follow.objects.all()) - all_follows
-        self.assertEqual(len(follows), 1)
-        follow = follows.pop()
-        self.assertEqual(follow.author, self.another_user)
-        self.assertEqual(follow.user, self.user)
+        self.assertEqual(
+            Follow.objects.get(user=self.user).author, self.another_user
+        )
 
     def test_unfollow(self):
-        self.authorized_client.get(FOLLOW_URL)
-        all_follows = set(Follow.objects.all())
         self.authorized_client.get(UNFOLLOW_URL)
-        follows = all_follows - set(Follow.objects.all())
-        self.assertEqual(len(follows), 1)
+        self.assertNotIn(self.user, Follow.objects.all())
 
-    def test_post_is_add_to_followers(self):
-        self.authorized_client.get(FOLLOW_URL)
-        all_posts = set(
-            self.authorized_client.get(FOLLOW_INDEX_URL).context['page_obj']
+    def test_caches(self):
+        """Выполняется кэширование главной страницы."""
+        Post.objects.create(author=self.user, text='Тест')
+        first_responce = Client().get(INDEX_URL)
+        Post.objects.all().delete()
+        second_responce = Client().get(INDEX_URL)
+        self.assertEqual(
+            first_responce.content,
+            second_responce.content
         )
-        new_post = Post.objects.create(
-            author=self.another_user,
-            text='Тест',
-            group=self.group,
+        cache.clear()
+        third_responce = Client().get(INDEX_URL)
+        self.assertNotEqual(
+            second_responce.content,
+            third_responce.content
         )
-        posts = set(
-            self.authorized_client.get(FOLLOW_INDEX_URL).context['page_obj']
-        ) - all_posts
-        self.assertEqual(len(posts), 1)
-        post = posts.pop()
-        self.assertEqual(post.author, new_post.author)
-        self.assertEqual(post.text, new_post.text)
-        self.assertEqual(post.group, new_post.group)
-        self.assertEqual(post.id, new_post.id)
 
-    def test_post_is_not_add_to_another_users(self):
-        all_posts = set(
-            self.authorized_client.get(FOLLOW_INDEX_URL).context['page_obj']
-        )
-        Post.objects.create(
-            author=self.another_user,
-            text='Тест',
-            group=self.group,
-        )
-        posts = set(
-            self.authorized_client.get(FOLLOW_INDEX_URL).context['page_obj']
-        ) - all_posts
-        self.assertEqual(len(posts), 0)
-
-
-class PaginatorViewsTest(TestCase):
     def test_pages_contains_right_quantity_records(self):
         """
         Паджинация для шаблонов index, group_list, profile
         работает корректно.
         """
-        self.user = User.objects.create_user(username=USERNAME)
-        self.another_user = User.objects.create_user(username=ANOTHER_USERMANE)
-        self.authorized_client = Client()
-        self.authorized_another_client = Client()
-        self.group = Group.objects.create(
-            title='Тестовая группа',
-            slug=TEST_SLUG,
-            description='Тестовое описание',
-        )
-        self.authorized_client.force_login(self.user)
-        self.authorized_another_client.force_login(self.another_user)
-        self.authorized_client.get(FOLLOW_URL)
         Post.objects.bulk_create(
             (
                 Post(
@@ -219,7 +203,9 @@ class PaginatorViewsTest(TestCase):
                     text=str(text),
                     group=self.group
                 ) for text in range(
-                    settings.POSTS_COUNT_ON_PAGE + COUNT_POSTS_ON_SECOND_PAGE
+                    settings.POSTS_COUNT_ON_PAGE
+                    + COUNT_POSTS_ON_SECOND_PAGE
+                    - 1
                 )
             )
         )

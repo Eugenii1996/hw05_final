@@ -6,6 +6,7 @@ from ..models import Group, Post, User
 
 
 USERNAME = 'auth'
+ANOTHER_USERMANE = 'creator'
 SLUG = 'test-slug'
 
 INDEX_URL = reverse('posts:index')
@@ -19,6 +20,11 @@ UNFOLLOW_URL = reverse('posts:profile_unfollow', args=[USERNAME])
 REDIRECT_POST_CREATE_URL = f'{LOGIN_URL}?next={POST_CREATE_URL}'
 REDIRECT_INDEX_FOLLOW_URL = f'{LOGIN_URL}?next={FOLLOW_INDEX_URL}'
 REDIRECT_FOLLOW_URL = f'{LOGIN_URL}?next={FOLLOW_URL}'
+REDIRECT_UNFOLLOW_URL = f'{LOGIN_URL}?next={UNFOLLOW_URL}'
+
+OK_STATUS = HTTPStatus.OK
+FOUND_STATUS = HTTPStatus.FOUND
+NOT_FOUND_STATUS = HTTPStatus.NOT_FOUND
 
 
 class PostURLTests(TestCase):
@@ -26,7 +32,12 @@ class PostURLTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create_user(username=USERNAME)
-        cls.another_user = User.objects.create_user(username='creator')
+        cls.another_user = User.objects.create_user(username=ANOTHER_USERMANE)
+        cls.guest = Client()
+        cls.author = Client()
+        cls.another = Client()
+        cls.author.force_login(cls.user)
+        cls.another.force_login(cls.another_user)
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug=SLUG,
@@ -55,33 +66,29 @@ class PostURLTests(TestCase):
             f'{LOGIN_URL}?next={cls.COMMENT_CREATE_URL}'
         )
 
-    def setUp(self):
-        self.guest = Client()
-        self.author = Client()
-        self.another = Client()
-        self.author.force_login(self.user)
-        self.another.force_login(self.another_user)
-
     # Проверяем общедоступные страницы
     def test_urls_uses_correct(self):
         """Любому пользователю доступны URL-адреса."""
         tested_cases = [
-            [INDEX_URL, self.guest, HTTPStatus.OK],
-            [GROUP_LIST_URL, self.guest, HTTPStatus.OK],
-            [PROFILE_URL, self.guest, HTTPStatus.OK],
-            [self.POST_DETAIL_URL, self.guest, HTTPStatus.OK],
-            ['/unexisting_page/', self.guest, HTTPStatus.NOT_FOUND],
-            [self.POST_EDIT_URL, self.author, HTTPStatus.OK],
-            [self.POST_EDIT_URL, self.guest, HTTPStatus.FOUND],
-            [self.POST_EDIT_URL, self.another, HTTPStatus.FOUND],
-            [POST_CREATE_URL, self.another, HTTPStatus.OK],
-            [POST_CREATE_URL, self.guest, HTTPStatus.FOUND],
-            [self.COMMENT_CREATE_URL, self.guest, HTTPStatus.FOUND],
-            [FOLLOW_INDEX_URL, self.another, HTTPStatus.OK],
-            [FOLLOW_INDEX_URL, self.guest, HTTPStatus.FOUND],
-            [FOLLOW_URL, self.guest, HTTPStatus.FOUND],
-            [FOLLOW_URL, self.another, HTTPStatus.FOUND],
-            [UNFOLLOW_URL, self.guest, HTTPStatus.FOUND]
+            [INDEX_URL, self.guest, OK_STATUS],
+            [GROUP_LIST_URL, self.guest, OK_STATUS],
+            [PROFILE_URL, self.guest, OK_STATUS],
+            [self.POST_DETAIL_URL, self.guest, OK_STATUS],
+            ['/unexisting_page/', self.guest, NOT_FOUND_STATUS],
+            [self.POST_EDIT_URL, self.author, OK_STATUS],
+            [self.POST_EDIT_URL, self.guest, FOUND_STATUS],
+            [self.POST_EDIT_URL, self.another, FOUND_STATUS],
+            [POST_CREATE_URL, self.another, OK_STATUS],
+            [POST_CREATE_URL, self.guest, FOUND_STATUS],
+            [self.COMMENT_CREATE_URL, self.guest, FOUND_STATUS],
+            [FOLLOW_INDEX_URL, self.another, OK_STATUS],
+            [FOLLOW_INDEX_URL, self.guest, FOUND_STATUS],
+            [FOLLOW_URL, self.guest, FOUND_STATUS],
+            [FOLLOW_URL, self.author, FOUND_STATUS],
+            [FOLLOW_URL, self.another, FOUND_STATUS],
+            [UNFOLLOW_URL, self.guest, FOUND_STATUS],
+            [UNFOLLOW_URL, self.author, NOT_FOUND_STATUS],
+            [UNFOLLOW_URL, self.another, FOUND_STATUS]
         ]
         for address, client, status in tested_cases:
             with self.subTest(address=address, client=client):
@@ -120,6 +127,8 @@ class PostURLTests(TestCase):
             [FOLLOW_INDEX_URL, self.guest, REDIRECT_INDEX_FOLLOW_URL],
             [FOLLOW_URL, self.guest, REDIRECT_FOLLOW_URL],
             [FOLLOW_URL, self.another, PROFILE_URL],
+            [FOLLOW_URL, self.author, PROFILE_URL],
+            [UNFOLLOW_URL, self.guest, REDIRECT_UNFOLLOW_URL],
             [UNFOLLOW_URL, self.another, PROFILE_URL]
         ]
         for url, client, redirect_url in redirect_url_names:

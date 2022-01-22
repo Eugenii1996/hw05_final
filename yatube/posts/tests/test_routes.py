@@ -5,6 +5,7 @@ from django.urls import reverse
 USER = 'auth'
 SLUG = 'test-slug'
 POST_ID = 1
+APP_NAME = 'posts'
 
 
 class PostURLTests(TestCase):
@@ -24,5 +25,5 @@ class PostURLTests(TestCase):
         ]
         for route, arg, url in route_url_names:
             self.assertEqual(
-                reverse(f'posts:{route}', args=arg), url
+                reverse(f'{APP_NAME}:{route}', args=arg), url
             )

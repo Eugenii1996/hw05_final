@@ -13,6 +13,7 @@ from ..models import Comment, Group, Post, User
 
 
 USERNAME = 'auth'
+ANOTHER_USERMANE = 'creator'
 
 POST_CREATE_URL = reverse('posts:post_create')
 PROFILE_URL = reverse('posts:profile', args=[USERNAME])
@@ -26,6 +27,7 @@ SMALL_GIF = (
     b'\x0A\x00\x3B'
 )
 
+MEDIA_DIRECTORY = 'posts/'
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
 
@@ -35,6 +37,12 @@ class PostFormTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create_user(username=USERNAME)
+        cls.another_user = User.objects.create_user(username=ANOTHER_USERMANE)
+        cls.guest = Client()
+        cls.author = Client()
+        cls.another = Client()
+        cls.author.force_login(cls.user)
+        cls.another.force_login(cls.another_user)
         cls.notes_group = Group.objects.create(
             title='Заметки',
             slug='notes',
@@ -65,8 +73,6 @@ class PostFormTests(TestCase):
         cls.form = PostForm()
 
     def setUp(self):
-        self.authorized_client = Client()
-        self.authorized_client.force_login(self.user)
         self.uploaded = SimpleUploadedFile(
             name='small.gif',
             content=SMALL_GIF,
@@ -76,15 +82,18 @@ class PostFormTests(TestCase):
     def tearDown(self):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
-    def test_create_post(self):
-        """Валидная форма создает запись в Post."""
+    def test_author_create_post(self):
+        """
+        Валидная форма создает запись в Post
+        для авторизованного пользователя.
+        """
         all_posts = set(Post.objects.all())
         form_data = {
             'text': 'Тестовый текст',
             'group': self.notes_group.pk,
             'image': self.uploaded
         }
-        response = self.authorized_client.post(
+        response = self.author.post(
             POST_CREATE_URL,
             data=form_data
         )
@@ -95,7 +104,22 @@ class PostFormTests(TestCase):
         self.assertEqual(post.author, self.user)
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.group.id, form_data['group'])
-        self.assertEqual(post.image, f'posts/{form_data["image"]}')
+        self.assertEqual(post.image, f'{MEDIA_DIRECTORY}{form_data["image"]}')
+
+    def test_guest_create_post(self):
+        """Валидная форма не создает запись в Post для гостя."""
+        all_posts = set(Post.objects.all())
+        form_data = {
+            'text': 'Тестовый текст',
+            'group': self.notes_group.pk,
+            'image': self.uploaded
+        }
+        self.guest.post(
+            POST_CREATE_URL,
+            data=form_data
+        )
+        posts = set(Post.objects.all()) - all_posts
+        self.assertEqual(len(posts), 0)
 
     def test_title_label(self):
         """
@@ -125,14 +149,17 @@ class PostFormTests(TestCase):
                 self.form.fields[field].help_text, name
             )
 
-    def test_edit_post(self):
-        """Валидная форма изменяет запись в Post."""
+    def test_author_edit_post(self):
+        """
+        Валидная форма изменяет запись в Post
+        для авторизованного автора поста.
+        """
         form_data = {
             'text': 'Тестовый текст',
             'group': self.letters_group.pk,
             'image': self.uploaded
         }
-        response = self.authorized_client.post(
+        response = self.author.post(
             self.POST_EDIT_URL,
             data=form_data,
             follow=True
@@ -142,7 +169,29 @@ class PostFormTests(TestCase):
         self.assertEqual(post.author, self.post.author)
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.group.pk, form_data['group'])
-        self.assertEqual(post.image, f'posts/{form_data["image"]}')
+        self.assertEqual(post.image, f'{MEDIA_DIRECTORY}{form_data["image"]}')
+
+    def test_another_edit_post(self):
+        """
+        Валидная форма не изменяет запись в Post
+        для авторизованного не автора поста.
+        """
+        form_data = {
+            'text': 'Тестовый текст',
+            'group': self.letters_group.pk,
+            'image': self.uploaded
+        }
+        response = self.another.post(
+            self.POST_EDIT_URL,
+            data=form_data,
+            follow=True
+        )
+        post = response.context['post']
+        self.assertRedirects(response, self.POST_DETAIL_URL)
+        self.assertEqual(post.author, self.post.author)
+        self.assertEqual(post.text, self.post.text)
+        self.assertEqual(post.group.pk, self.post.group.pk)
+        self.assertEqual(post.image, self.post.image)
 
     def test_form_pages_show_correct_context(self):
         """
@@ -157,9 +206,9 @@ class PostFormTests(TestCase):
             self.POST_EDIT_URL: form_fields,
             POST_CREATE_URL: form_fields,
         }
-        for reverse_name, fields_set in pages_reverse_name.items():
-            with self.subTest(reverse_name=reverse_name):
-                response = self.authorized_client.get(reverse_name)
+        for url, fields_set in pages_reverse_name.items():
+            with self.subTest(reverse_name=url):
+                response = self.author.get(url)
                 for value, expected in fields_set.items():
                     with self.subTest(value=value):
                         form_field = response.context.get(
@@ -167,13 +216,16 @@ class PostFormTests(TestCase):
                         ).fields.get(value)
                         self.assertIsInstance(form_field, expected)
 
-    def test_create_comment(self):
-        """Валидная форма создает запись в Comment."""
+    def test_author_create_comment(self):
+        """
+        Валидная форма создает запись в Comment
+        для авторизованного пользователя.
+        """
         all_comments = set(Comment.objects.all())
         form_data = {
             'text': 'Тестовый текст'
         }
-        response = self.authorized_client.post(
+        response = self.author.post(
             self.COMMENT_CREATE_URL,
             data=form_data
         )
@@ -183,4 +235,17 @@ class PostFormTests(TestCase):
         self.assertRedirects(response, self.POST_DETAIL_URL)
         self.assertEqual(comment.author, self.user)
         self.assertEqual(comment.text, form_data['text'])
-        self.assertEqual(comment.post.id, self.post.id)
+        self.assertEqual(comment.post, self.post)
+
+    def test_guest_create_comment(self):
+        """Валидная форма не создает запись в Comment для гостя."""
+        all_comments = set(Comment.objects.all())
+        form_data = {
+            'text': 'Тестовый текст'
+        }
+        self.guest.post(
+            self.COMMENT_CREATE_URL,
+            data=form_data
+        )
+        comments = set(Comment.objects.all()) - all_comments
+        self.assertEqual(len(comments), 0)
