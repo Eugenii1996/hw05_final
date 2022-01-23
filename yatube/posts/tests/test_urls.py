@@ -22,9 +22,9 @@ REDIRECT_INDEX_FOLLOW_URL = f'{LOGIN_URL}?next={FOLLOW_INDEX_URL}'
 REDIRECT_FOLLOW_URL = f'{LOGIN_URL}?next={FOLLOW_URL}'
 REDIRECT_UNFOLLOW_URL = f'{LOGIN_URL}?next={UNFOLLOW_URL}'
 
-OK_STATUS = HTTPStatus.OK
-FOUND_STATUS = HTTPStatus.FOUND
-NOT_FOUND_STATUS = HTTPStatus.NOT_FOUND
+OK = HTTPStatus.OK
+FOUND = HTTPStatus.FOUND
+NOT_FOUND = HTTPStatus.NOT_FOUND
 
 
 class PostURLTests(TestCase):
@@ -70,25 +70,25 @@ class PostURLTests(TestCase):
     def test_urls_uses_correct(self):
         """Любому пользователю доступны URL-адреса."""
         tested_cases = [
-            [INDEX_URL, self.guest, OK_STATUS],
-            [GROUP_LIST_URL, self.guest, OK_STATUS],
-            [PROFILE_URL, self.guest, OK_STATUS],
-            [self.POST_DETAIL_URL, self.guest, OK_STATUS],
-            ['/unexisting_page/', self.guest, NOT_FOUND_STATUS],
-            [self.POST_EDIT_URL, self.author, OK_STATUS],
-            [self.POST_EDIT_URL, self.guest, FOUND_STATUS],
-            [self.POST_EDIT_URL, self.another, FOUND_STATUS],
-            [POST_CREATE_URL, self.another, OK_STATUS],
-            [POST_CREATE_URL, self.guest, FOUND_STATUS],
-            [self.COMMENT_CREATE_URL, self.guest, FOUND_STATUS],
-            [FOLLOW_INDEX_URL, self.another, OK_STATUS],
-            [FOLLOW_INDEX_URL, self.guest, FOUND_STATUS],
-            [FOLLOW_URL, self.guest, FOUND_STATUS],
-            [FOLLOW_URL, self.author, FOUND_STATUS],
-            [FOLLOW_URL, self.another, FOUND_STATUS],
-            [UNFOLLOW_URL, self.guest, FOUND_STATUS],
-            [UNFOLLOW_URL, self.author, NOT_FOUND_STATUS],
-            [UNFOLLOW_URL, self.another, FOUND_STATUS]
+            [INDEX_URL, self.guest, OK],
+            [GROUP_LIST_URL, self.guest, OK],
+            [PROFILE_URL, self.guest, OK],
+            [self.POST_DETAIL_URL, self.guest, OK],
+            ['/unexisting_page/', self.guest, NOT_FOUND],
+            [self.POST_EDIT_URL, self.author, OK],
+            [self.POST_EDIT_URL, self.guest, FOUND],
+            [self.POST_EDIT_URL, self.another, FOUND],
+            [POST_CREATE_URL, self.another, OK],
+            [POST_CREATE_URL, self.guest, FOUND],
+            [self.COMMENT_CREATE_URL, self.guest, FOUND],
+            [FOLLOW_INDEX_URL, self.another, OK],
+            [FOLLOW_INDEX_URL, self.guest, FOUND],
+            [FOLLOW_URL, self.guest, FOUND],
+            [FOLLOW_URL, self.author, FOUND],
+            [FOLLOW_URL, self.another, FOUND],
+            [UNFOLLOW_URL, self.guest, FOUND],
+            [UNFOLLOW_URL, self.author, NOT_FOUND],
+            [UNFOLLOW_URL, self.another, FOUND]
         ]
         for address, client, status in tested_cases:
             with self.subTest(address=address, client=client):

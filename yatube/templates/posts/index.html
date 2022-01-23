@@ -6,12 +6,7 @@
   {% include 'posts/includes/switcher.html' with index=True %}
   {% cache 20 index_page page_obj.number %}
     {% for post in page_obj %}
-      {% include 'posts/includes/post_list.html' %}
-      {% if post.group %}
-        <a href="{% url 'posts:group_list' post.group.slug %}">
-          #{{ post.group }}
-        </a>
-      {% endif %}
+      {% include 'posts/includes/post_context.html' with show_group=True %}
       {% if not forloop.last %}<hr>{% endif %}
     {% endfor %}
   {% endcache %}

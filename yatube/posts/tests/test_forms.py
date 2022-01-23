@@ -193,6 +193,27 @@ class PostFormTests(TestCase):
         self.assertEqual(post.group.pk, self.post.group.pk)
         self.assertEqual(post.image, self.post.image)
 
+    def test_guest_edit_post(self):
+        """
+        Валидная форма не изменяет запись в Post
+        для неавторизованного пользователя.
+        """
+        form_data = {
+            'text': 'Тестовый текст',
+            'group': self.letters_group.pk,
+            'image': self.uploaded
+        }
+        self.guest.post(
+            self.POST_EDIT_URL,
+            data=form_data,
+            follow=True
+        )
+        post = Post.objects.get(pk=self.post.id)
+        self.assertEqual(post.author, self.post.author)
+        self.assertEqual(post.text, self.post.text)
+        self.assertEqual(post.group.pk, self.post.group.pk)
+        self.assertEqual(post.image, self.post.image)
+
     def test_form_pages_show_correct_context(self):
         """
         Шаблоны post_edit и post_create сформированы

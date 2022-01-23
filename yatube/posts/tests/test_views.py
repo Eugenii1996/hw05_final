@@ -45,14 +45,10 @@ class PostPagesTests(TestCase):
         super().setUpClass()
         cls.user = User.objects.create_user(username=USERNAME)
         cls.another_user = User.objects.create_user(username=ANOTHER_USERMANE)
-        cls.authorized_client = Client()
-        cls.authorized_another_client = Client()
-        cls.authorized_client.force_login(cls.user)
-        cls.authorized_another_client.force_login(cls.another_user)
-        Follow.objects.create(
-            user=cls.user,
-            author=cls.another_user
-        )
+        cls.author = Client()
+        cls.another = Client()
+        cls.author.force_login(cls.user)
+        cls.another.force_login(cls.another_user)
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug=TEST_SLUG,
@@ -94,18 +90,15 @@ class PostPagesTests(TestCase):
             author=self.user
         )
         pages_reverse_name = [
-            INDEX_URL,
-            GROUP_LIST_URL,
-            PROFILE_URL,
-            self.POST_DETAIL_URL,
-            FOLLOW_INDEX_URL
+            [INDEX_URL, self.author],
+            [GROUP_LIST_URL, self.author],
+            [PROFILE_URL, self.author],
+            [self.POST_DETAIL_URL, self.author],
+            [FOLLOW_INDEX_URL, self.another]
         ]
-        for url in pages_reverse_name:
+        for url, client in pages_reverse_name:
             with self.subTest(url=url):
-                if url == FOLLOW_INDEX_URL:
-                    response = self.authorized_another_client.get(url)
-                else:
-                    response = self.authorized_client.get(url)
+                response = client.get(url)
                 if url == self.POST_DETAIL_URL:
                     post = response.context.get('post')
                 else:
@@ -129,17 +122,11 @@ class PostPagesTests(TestCase):
             NEW_GROUP_LIST_URL,
             FOLLOW_INDEX_URL
         ]
-        self.assertNotIn(
-            self.post,
-            self.authorized_another_client.get(
-                NEW_GROUP_LIST_URL
-            ).context['page_obj']
-        )
         for url in pages_reverse_name:
             with self.subTest(url=url):
                 self.assertNotIn(
                     self.post,
-                    self.authorized_client.get(url).context['page_obj']
+                    self.author.get(url).context['page_obj']
                 )
 
     def test_author_on_sheet(self):
@@ -149,14 +136,14 @@ class PostPagesTests(TestCase):
         """
         self.assertEqual(
             self.user,
-            self.authorized_client.get(
+            self.author.get(
                 PROFILE_URL
             ).context.get('author')
         )
 
     def test_group_in_group_list(self):
         """Группа создалась с правильным содержанием полей"""
-        group_items = self.authorized_client.get(
+        group_items = self.author.get(
             GROUP_LIST_URL
         ).context['group']
         self.assertEqual(self.group.id, group_items.id)
@@ -165,18 +152,23 @@ class PostPagesTests(TestCase):
         self.assertEqual(self.group.description, group_items.description)
 
     def test_follow(self):
-        self.authorized_client.get(FOLLOW_URL)
-        self.assertEqual(
-            Follow.objects.get(user=self.user).author, self.another_user
+        self.author.get(FOLLOW_URL)
+        self.assertTrue(
+            Follow.objects.filter(user=self.user, author=self.another_user)
         )
 
     def test_unfollow(self):
-        self.authorized_client.get(UNFOLLOW_URL)
-        self.assertNotIn(self.user, Follow.objects.all())
+        Follow.objects.create(
+            user=self.user,
+            author=self.another_user
+        )
+        self.author.get(UNFOLLOW_URL)
+        self.assertFalse(
+            Follow.objects.filter(user=self.user, author=self.another_user)
+        )
 
     def test_caches(self):
         """Выполняется кэширование главной страницы."""
-        Post.objects.create(author=self.user, text='Тест')
         first_responce = Client().get(INDEX_URL)
         Post.objects.all().delete()
         second_responce = Client().get(INDEX_URL)
@@ -196,6 +188,10 @@ class PostPagesTests(TestCase):
         Паджинация для шаблонов index, group_list, profile
         работает корректно.
         """
+        Follow.objects.create(
+            user=self.another_user,
+            author=self.user
+        )
         Post.objects.bulk_create(
             (
                 Post(
@@ -205,21 +201,31 @@ class PostPagesTests(TestCase):
                 ) for text in range(
                     settings.POSTS_COUNT_ON_PAGE
                     + COUNT_POSTS_ON_SECOND_PAGE
-                    - 1
+                    - Post.objects.count()
                 )
             )
         )
-        page_objects = {
-            INDEX_URL: settings.POSTS_COUNT_ON_PAGE,
-            f'{INDEX_URL}?page=2': COUNT_POSTS_ON_SECOND_PAGE,
-            GROUP_LIST_URL: settings.POSTS_COUNT_ON_PAGE,
-            f'{GROUP_LIST_URL}?page=2': COUNT_POSTS_ON_SECOND_PAGE,
-            PROFILE_URL: settings.POSTS_COUNT_ON_PAGE,
-            f'{PROFILE_URL}?page=2': COUNT_POSTS_ON_SECOND_PAGE,
-        }
-        for url, records_count in page_objects.items():
+        page_objects = [
+            [INDEX_URL, settings.POSTS_COUNT_ON_PAGE, self.author],
+            [f'{INDEX_URL}?page=2', COUNT_POSTS_ON_SECOND_PAGE, self.author],
+            [GROUP_LIST_URL, settings.POSTS_COUNT_ON_PAGE, self.author],
+            [
+                f'{GROUP_LIST_URL}?page=2',
+                COUNT_POSTS_ON_SECOND_PAGE,
+                self.author
+            ],
+            [PROFILE_URL, settings.POSTS_COUNT_ON_PAGE, self.author],
+            [f'{PROFILE_URL}?page=2', COUNT_POSTS_ON_SECOND_PAGE, self.author],
+            [FOLLOW_INDEX_URL, settings.POSTS_COUNT_ON_PAGE, self.another],
+            [
+                f'{FOLLOW_INDEX_URL}?page=2',
+                COUNT_POSTS_ON_SECOND_PAGE,
+                self.another
+            ]
+        ]
+        for url, records_count, client in page_objects:
             with self.subTest(url=url):
-                response = self.authorized_client.get(url)
+                response = client.get(url)
                 self.assertEqual(
                     len(response.context['page_obj']), records_count
                 )

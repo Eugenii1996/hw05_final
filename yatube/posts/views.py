@@ -31,14 +31,13 @@ def group_posts(request, slug):
 
 def profile(request, username):
     author = get_object_or_404(User, username=username)
-    following = True if (
-        request.user.is_authenticated and Follow.objects.filter(
-            user=request.user, author=author
-        ).exists()
-    ) else False
     return render(request, 'posts/profile.html', {
         'author': author,
-        'following': following,
+        'following': request.user.is_authenticated
+        and author != request.user
+        and Follow.objects.filter(
+            user=request.user, author=author
+        ).exists(),
         'page_obj': post_processor(request, author.posts.all()),
     })
 
@@ -86,6 +85,8 @@ def post_edit(request, post_id):
 def add_comment(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST or None)
+    if not form.is_valid():
+        return redirect('posts:post_detail', post_id=post_id)
     comment = form.save(commit=False)
     comment.author = request.user
     comment.post = post
@@ -118,7 +119,8 @@ def profile_follow(request, username):
 
 @login_required
 def profile_unfollow(request, username):
-    author = get_object_or_404(User, username=username)
-    follows = get_object_or_404(Follow, user=request.user, author=author)
-    Follow.objects.filter(user=follows.user, author=follows.author).delete()
+    follows = get_object_or_404(
+        Follow, user=request.user, author__username=username
+    )
+    follows.delete()
     return redirect('posts:profile', follows.author)

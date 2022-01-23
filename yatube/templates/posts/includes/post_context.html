@@ -15,3 +15,10 @@
   {% endthumbnail %}
   <p>{{ post.text|linebreaksbr }}</p>
 </article>
+{% if show_group and post.group %}
+  <br>
+    <a href="{% url 'posts:group_list' post.group.slug %}">
+      #{{ post.group }}
+    </a>
+  </br>
+{% endif %}
