@@ -55,18 +55,10 @@ class PostURLTests(TestCase):
             'posts:post_edit',
             args=[cls.post.id]
         )
-        cls.COMMENT_CREATE_URL = reverse(
-            'posts:add_comment',
-            args=[cls.post.id]
-        )
         cls.REDIRECT_POST_EDIT_URL = (
             f'{LOGIN_URL}?next={cls.POST_EDIT_URL}'
         )
-        cls.REDIRECT_COMMENT_CREATE_URL = (
-            f'{LOGIN_URL}?next={cls.COMMENT_CREATE_URL}'
-        )
 
-    # Проверяем общедоступные страницы
     def test_urls_uses_correct(self):
         """Любому пользователю доступны URL-адреса."""
         tested_cases = [
@@ -80,7 +72,6 @@ class PostURLTests(TestCase):
             [self.POST_EDIT_URL, self.another, FOUND],
             [POST_CREATE_URL, self.another, OK],
             [POST_CREATE_URL, self.guest, FOUND],
-            [self.COMMENT_CREATE_URL, self.guest, FOUND],
             [FOLLOW_INDEX_URL, self.another, OK],
             [FOLLOW_INDEX_URL, self.guest, FOUND],
             [FOLLOW_URL, self.guest, FOUND],
@@ -119,11 +110,6 @@ class PostURLTests(TestCase):
             [POST_CREATE_URL, self.guest, REDIRECT_POST_CREATE_URL],
             [self.POST_EDIT_URL, self.guest, self.REDIRECT_POST_EDIT_URL],
             [self.POST_EDIT_URL, self.another, self.POST_DETAIL_URL],
-            [
-                self.COMMENT_CREATE_URL,
-                self.guest,
-                self.REDIRECT_COMMENT_CREATE_URL
-            ],
             [FOLLOW_INDEX_URL, self.guest, REDIRECT_INDEX_FOLLOW_URL],
             [FOLLOW_URL, self.guest, REDIRECT_FOLLOW_URL],
             [FOLLOW_URL, self.another, PROFILE_URL],

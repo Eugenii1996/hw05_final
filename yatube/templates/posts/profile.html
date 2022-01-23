@@ -21,7 +21,7 @@
     {% endif %}
   </div>
   {% for post in page_obj %}
-    {% include 'posts/includes/post_context.html' with show_group=True %}
+    {% include 'posts/includes/post_context.html' %}
     <a href="{% url 'posts:post_detail' post.pk %}">подробная информация </a>
     {% if not forloop.last %}<hr>{% endif %}
   {% endfor %}

@@ -34,10 +34,10 @@ def profile(request, username):
     return render(request, 'posts/profile.html', {
         'author': author,
         'following': request.user.is_authenticated
-        and author != request.user
-        and Follow.objects.filter(
-            user=request.user, author=author
-        ).exists(),
+                     and author != request.user
+                     and Follow.objects.filter(
+                         user=request.user, author=author
+                     ).exists(),
         'page_obj': post_processor(request, author.posts.all()),
     })
 
@@ -85,12 +85,11 @@ def post_edit(request, post_id):
 def add_comment(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST or None)
-    if not form.is_valid():
-        return redirect('posts:post_detail', post_id=post_id)
-    comment = form.save(commit=False)
-    comment.author = request.user
-    comment.post = post
-    comment.save()
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.author = request.user
+        comment.post = post
+        comment.save()
     return redirect('posts:post_detail', post_id=post_id)
 
 
@@ -119,8 +118,7 @@ def profile_follow(request, username):
 
 @login_required
 def profile_unfollow(request, username):
-    follows = get_object_or_404(
+    get_object_or_404(
         Follow, user=request.user, author__username=username
-    )
-    follows.delete()
-    return redirect('posts:profile', follows.author)
+    ).delete()
+    return redirect('posts:profile', username)

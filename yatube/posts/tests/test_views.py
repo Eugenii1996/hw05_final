@@ -143,13 +143,13 @@ class PostPagesTests(TestCase):
 
     def test_group_in_group_list(self):
         """Группа создалась с правильным содержанием полей"""
-        group_items = self.author.get(
+        group = self.author.get(
             GROUP_LIST_URL
         ).context['group']
-        self.assertEqual(self.group.id, group_items.id)
-        self.assertEqual(self.group.title, group_items.title)
-        self.assertEqual(self.group.slug, group_items.slug)
-        self.assertEqual(self.group.description, group_items.description)
+        self.assertEqual(self.group.id, group.id)
+        self.assertEqual(self.group.title, group.title)
+        self.assertEqual(self.group.slug, group.slug)
+        self.assertEqual(self.group.description, group.description)
 
     def test_follow(self):
         self.author.get(FOLLOW_URL)

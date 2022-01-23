@@ -17,6 +17,7 @@ ANOTHER_USERMANE = 'creator'
 
 POST_CREATE_URL = reverse('posts:post_create')
 PROFILE_URL = reverse('posts:profile', args=[USERNAME])
+LOGIN_URL = reverse('users:login')
 
 SMALL_GIF = (
     b'\x47\x49\x46\x38\x39\x61\x02\x00'
@@ -69,6 +70,9 @@ class PostFormTests(TestCase):
         cls.COMMENT_CREATE_URL = reverse(
             'posts:add_comment',
             args=[cls.post.id]
+        )
+        cls.REDIRECT_POST_EDIT_URL = (
+            f'{LOGIN_URL}?next={cls.POST_EDIT_URL}'
         )
         cls.form = PostForm()
 
@@ -171,44 +175,29 @@ class PostFormTests(TestCase):
         self.assertEqual(post.group.pk, form_data['group'])
         self.assertEqual(post.image, f'{MEDIA_DIRECTORY}{form_data["image"]}')
 
-    def test_another_edit_post(self):
+    def test_another_and_guest_edit_post(self):
         """
         Валидная форма не изменяет запись в Post
-        для авторизованного не автора поста.
+        для авторизованного не автора поста
+        и для неавторизованного пользователя.
         """
+        clients = [
+            [self.another, self.POST_DETAIL_URL],
+            [self.guest, self.REDIRECT_POST_EDIT_URL]
+        ]
         form_data = {
             'text': 'Тестовый текст',
             'group': self.letters_group.pk,
             'image': self.uploaded
         }
-        response = self.another.post(
-            self.POST_EDIT_URL,
-            data=form_data,
-            follow=True
-        )
-        post = response.context['post']
-        self.assertRedirects(response, self.POST_DETAIL_URL)
-        self.assertEqual(post.author, self.post.author)
-        self.assertEqual(post.text, self.post.text)
-        self.assertEqual(post.group.pk, self.post.group.pk)
-        self.assertEqual(post.image, self.post.image)
-
-    def test_guest_edit_post(self):
-        """
-        Валидная форма не изменяет запись в Post
-        для неавторизованного пользователя.
-        """
-        form_data = {
-            'text': 'Тестовый текст',
-            'group': self.letters_group.pk,
-            'image': self.uploaded
-        }
-        self.guest.post(
-            self.POST_EDIT_URL,
-            data=form_data,
-            follow=True
-        )
+        for client, url in clients:
+            response = client.post(
+                self.POST_EDIT_URL,
+                data=form_data,
+                follow=True
+            )
         post = Post.objects.get(pk=self.post.id)
+        self.assertRedirects(response, url)
         self.assertEqual(post.author, self.post.author)
         self.assertEqual(post.text, self.post.text)
         self.assertEqual(post.group.pk, self.post.group.pk)
