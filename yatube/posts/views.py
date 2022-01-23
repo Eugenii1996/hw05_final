@@ -33,7 +33,8 @@ def profile(request, username):
     author = get_object_or_404(User, username=username)
     return render(request, 'posts/profile.html', {
         'author': author,
-        'following': request.user.is_authenticated
+        'following':
+        request.user.is_authenticated
         and author != request.user
         and Follow.objects.filter(
             user=request.user, author=author
