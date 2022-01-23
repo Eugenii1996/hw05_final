@@ -34,10 +34,10 @@ def profile(request, username):
     return render(request, 'posts/profile.html', {
         'author': author,
         'following': request.user.is_authenticated
-                     and author != request.user
-                     and Follow.objects.filter(
-                         user=request.user, author=author
-                     ).exists(),
+        and author != request.user
+        and Follow.objects.filter(
+            user=request.user, author=author
+        ).exists(),
         'page_obj': post_processor(request, author.posts.all()),
     })
 
