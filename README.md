@@ -1,4 +1,4 @@
-# Yatube social network
+# Социальная сеть Yatube
 
 ### Разработчик:
 
