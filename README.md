@@ -53,6 +53,7 @@ python -m pip install --upgrade pip
 
 ```bash
 pip install -r requirements.txt
+```
 
 После клонирования необходимо установить окружение находясь в корневой директории:
 
