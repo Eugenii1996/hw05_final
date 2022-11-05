@@ -15,11 +15,44 @@
  - Git
  - Pytest
 
-### Клонировать репозиторий c GitHub:
+### Клонирование репозитория и переход в него в командной строке:
 
 ```bash
 git clone git@github.com:Eugenii1996/hw05_final.git
 ```
+
+```bash
+cd hw05_final
+```
+
+### Cоздать и активировать виртуальное окружение:
+
+Виртуальное окружение должно использовать Python 3.7
+
+```bash
+pyhton -m venv venv
+```
+
+* Если у вас Linux/MacOS
+
+    ```bash
+    source venv/bin/activate
+    ```
+
+* Если у вас windows
+
+    ```bash
+    source venv/scripts/activate
+    ```
+
+### Установка зависимостей из файла requirements.txt:
+
+```bash
+python -m pip install --upgrade pip
+```
+
+```bash
+pip install -r requirements.txt
 
 После клонирования необходимо установить окружение находясь в корневой директории:
 
